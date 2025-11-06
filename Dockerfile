@@ -134,6 +134,14 @@ WORKDIR $COMFYUI_PATH
 COPY src/extra_model_paths.yaml ./
 WORKDIR /
 
+# Download ReActor inswapper_128.onnx to ComfyUI default path
+# This ensures ReActor nodes can find the model even if extra_model_paths.yaml or symlinks fail
+# ReActor swap_model parameter expects inswapper_128.onnx in /comfyui/models/insightface/
+RUN mkdir -p $COMFYUI_PATH/models/insightface && \
+    wget -q --show-progress -O $COMFYUI_PATH/models/insightface/inswapper_128.onnx \
+    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" || \
+    (echo "Warning: Failed to download inswapper_128.onnx" && exit 0)
+
 # ============================================
 # 模型下载已移除 - 使用 Network Volume 存储模型
 # ============================================
