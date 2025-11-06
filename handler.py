@@ -31,15 +31,28 @@ os.environ.setdefault('NUMBA_DISABLE_PERFORMANCE_WARNINGS', '1')
 os.environ.setdefault('NUMBA_LOG_LEVEL', 'ERROR')
 
 # Set Hugging Face cache directories for BLIP and other transformers models
-# This ensures models downloaded to Network Volume are used at runtime
+# Priority: Network Volume > Image default path
 # transformers library stores models in cache_dir/models--Salesforce--blip-vqa-base/ structure
-blip_cache_dir = '/runpod-volume/models/blip'
-if os.path.isdir(blip_cache_dir):
+blip_cache_network = '/runpod-volume/models/blip'
+blip_cache_image = '/comfyui/models/blip'
+
+# Prefer Network Volume, fallback to image default path
+if os.path.isdir(blip_cache_network):
+    blip_cache_dir = blip_cache_network
+    cache_source = "Network Volume"
+elif os.path.isdir(blip_cache_image):
+    blip_cache_dir = blip_cache_image
+    cache_source = "image default path"
+else:
+    blip_cache_dir = None
+    cache_source = None
+
+if blip_cache_dir:
     os.environ['HF_HUB_CACHE'] = blip_cache_dir
     os.environ['TRANSFORMERS_CACHE'] = blip_cache_dir
     os.environ['HF_HOME'] = blip_cache_dir
     os.environ['HUGGINGFACE_HUB_CACHE'] = blip_cache_dir
-    print(f"worker-comfyui: Set Hugging Face cache directories to {blip_cache_dir}")
+    print(f"worker-comfyui: Using {cache_source} for BLIP models: {blip_cache_dir}")
     
     # Verify model directories exist
     import glob
@@ -50,9 +63,10 @@ if os.path.isdir(blip_cache_dir):
             print(f"worker-comfyui:   - {model_dir}")
     else:
         print(f"worker-comfyui: WARNING: No BLIP model directories found in {blip_cache_dir}")
-        print(f"worker-comfyui: Please run download-models-to-volume.sh to download BLIP models")
+        if cache_source == "Network Volume":
+            print(f"worker-comfyui: Please run download-models-to-volume.sh to download BLIP models")
 else:
-    print(f"worker-comfyui: WARNING: BLIP cache directory {blip_cache_dir} does not exist")
+    print(f"worker-comfyui: WARNING: BLIP cache directory not found (checked Network Volume and image path)")
 
 # Configure logging to reduce numba verbose output
 # Set numba logger to CRITICAL level to suppress all messages including type inference errors

@@ -142,6 +142,27 @@ RUN mkdir -p $COMFYUI_PATH/models/insightface && \
     "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" || \
     (echo "Warning: Failed to download inswapper_128.onnx" && exit 0)
 
+# Pre-download BLIP models to avoid runtime download failures
+# BLIP models are used by was-node-suite-comfyui for image captioning and VQA
+# According to was-node-suite-comfyui, it uses /comfyui/models/blip as cache_dir
+# We download models using transformers library which will place them correctly
+# This provides a fallback if Network Volume doesn't have BLIP models
+RUN mkdir -p $COMFYUI_PATH/models/blip && \
+    python3 -c "from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQuestionAnswering; \
+    import os; \
+    blip_cache = '/comfyui/models/blip'; \
+    os.environ['HF_HUB_CACHE'] = blip_cache; \
+    os.environ['TRANSFORMERS_CACHE'] = blip_cache; \
+    os.environ['HF_HOME'] = blip_cache; \
+    print('Downloading BLIP image captioning model...'); \
+    BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache); \
+    BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache); \
+    print('Downloading BLIP VQA model...'); \
+    BlipProcessor.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache); \
+    BlipForQuestionAnswering.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache); \
+    print('BLIP models downloaded successfully')" || \
+    (echo "Warning: Failed to download BLIP models" && exit 0)
+
 # ============================================
 # 模型下载已移除 - 使用 Network Volume 存储模型
 # ============================================
