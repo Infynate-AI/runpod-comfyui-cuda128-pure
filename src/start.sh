@@ -59,6 +59,7 @@ if [ -d "/runpod-volume/models" ]; then
     echo "worker-comfyui: Setting up model directory symlinks for ReActor compatibility"
     
     # Create insightface symlink if Network Volume has the directory
+    # PuLID_ComfyUI and other nodes expect /comfyui/models/insightface/models/antelopev2/
     if [ -d "/runpod-volume/models/insightface" ]; then
         # Remove existing directory if it's empty or create backup
         if [ -d "/comfyui/models/insightface" ] && [ ! -L "/comfyui/models/insightface" ]; then
@@ -72,6 +73,13 @@ if [ -d "/runpod-volume/models" ]; then
             mkdir -p /comfyui/models
             ln -sf /runpod-volume/models/insightface /comfyui/models/insightface
             echo "worker-comfyui: Created symlink /comfyui/models/insightface -> /runpod-volume/models/insightface"
+            # Verify antelopev2 subdirectory exists
+            if [ -d "/runpod-volume/models/insightface/models/antelopev2" ]; then
+                echo "worker-comfyui: Found antelopev2 model in Network Volume"
+            else
+                echo "worker-comfyui: WARNING: antelopev2 model not found in Network Volume"
+                echo "worker-comfyui: PuLID_ComfyUI will attempt to download it automatically"
+            fi
         fi
     fi
     

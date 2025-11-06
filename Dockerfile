@@ -142,6 +142,15 @@ RUN mkdir -p $COMFYUI_PATH/models/insightface && \
     "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" || \
     (echo "Warning: Failed to download inswapper_128.onnx" && exit 0)
 
+# Pre-download InsightFace AntelopeV2 model for PuLID_ComfyUI
+# PuLID_ComfyUI expects /comfyui/models/insightface/models/antelopev2/
+# This provides a fallback if Network Volume doesn't have the model
+RUN mkdir -p $COMFYUI_PATH/models/insightface/models && \
+    wget -q -O /tmp/antelopev2.zip "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip" && \
+    test -f /tmp/antelopev2.zip || (echo "Error: Failed to download antelopev2.zip" && exit 1) && \
+    unzip -q /tmp/antelopev2.zip -d $COMFYUI_PATH/models/insightface/models/ && \
+    rm /tmp/antelopev2.zip
+
 # Pre-download BLIP models to avoid runtime download failures
 # BLIP models are used by was-node-suite-comfyui for image captioning and VQA
 # According to was-node-suite-comfyui, it uses /comfyui/models/blip as cache_dir
