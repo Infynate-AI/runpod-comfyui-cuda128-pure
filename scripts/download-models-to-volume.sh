@@ -238,7 +238,6 @@ done
 echo ""
 
 
-
 # ============================================
 # MiniCPM-V-2_6-int4 模型（使用 huggingface_hub 下载整个目录）
 # ============================================
@@ -278,8 +277,7 @@ print('下载 MiniCPM-V-2_6-int4 模型（完整目录）...')
 try:
     snapshot_download(
         repo_id='openbmb/MiniCPM-V-2_6-int4',
-        local_dir=model_dir,
-        local_dir_use_symlinks=False
+        local_dir=model_dir
     )
     print('✓ MiniCPM-V-2_6-int4 模型下载完成')
 except Exception as e:
