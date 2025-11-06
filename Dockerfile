@@ -1,4 +1,7 @@
-# start from a clean base image (replace <version> with the desired [release](https://github.com/runpod-workers/worker-comfyui/releases))
+# 优化版 Dockerfile - 使用 Network Volume 存储模型
+# 此版本移除了所有模型下载，构建时间从 1.5-5 小时缩短到 10-30 分钟
+# 模型将通过 Network Volume 加载，详见 docs/network-volume-setup.md
+
 FROM runpod/worker-comfyui:5.5.0-base-cuda12.8.1
 
 # Set environment variables for better maintainability
@@ -25,19 +28,9 @@ RUN apt-get update && \
         python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Create all necessary model directories upfront
-RUN mkdir -p \
-    $COMFYUI_PATH/models/checkpoints/SDXL \
-    $COMFYUI_PATH/models/checkpoints/Wan2.2 \
-    $COMFYUI_PATH/models/clip_vision/wan \
-    $COMFYUI_PATH/models/pulid \
-    $COMFYUI_PATH/models/insightface/models \
-    $COMFYUI_PATH/models/reswapper \
-    $COMFYUI_PATH/models/hyperswap \
-    $COMFYUI_PATH/models/facerestore_models \
-    $COMFYUI_PATH/models/upscale_models \
-    $COMFYUI_PATH/models/loras/SDXL \
-    $COMFYUI_PATH/models/loras/Wan2.2
+# 注意：不再创建模型目录，因为模型将存储在 Network Volume 中
+# Network Volume 挂载到 /runpod-volume，ComfyUI 会自动从 /runpod-volume/models/... 加载模型
+# 详见 src/extra_model_paths.yaml 配置
 
 # Install all custom nodes in a single RUN block (optimizes Docker layers)
 # Each node installs its requirements.txt if it exists
@@ -109,104 +102,28 @@ RUN git config --global --add safe.directory '*' && \
     \
     cd $COMFYUI_PATH
 
-# Download InsightFace AntelopeV2 models (antelopev2.zip)
-# According to PuLID_ComfyUI README: models should be placed in ComfyUI/models/insightface/models/antelopev2
-# Using antelopev2.zip directly from Hugging Face instead of buffalo_l.zip to avoid renaming
-RUN wget -q -O /tmp/antelopev2.zip "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip" && \
-    test -f /tmp/antelopev2.zip || (echo "Error: Failed to download antelopev2.zip" && exit 1) && \
-    unzip -q /tmp/antelopev2.zip -d $COMFYUI_PATH/models/insightface/models/ && \
-    rm /tmp/antelopev2.zip
+# Support for Network Volume - Copy extra_model_paths.yaml to configure model loading
+# This file tells ComfyUI where to look for models in the Network Volume
+# Models should be placed in /runpod-volume/models/... according to this configuration
+WORKDIR $COMFYUI_PATH
+COPY src/extra_model_paths.yaml ./
+WORKDIR /
 
-# Download all models in optimized batches (grouped by type to optimize layer caching)
-# Checkpoint models
-RUN wget -q  -O $COMFYUI_PATH/models/checkpoints/SDXL/ultraRealisticByStable_v20FP16.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/SDXL/ultraRealisticByStable_v20FP16.safetensors"
+# ============================================
+# 模型下载已移除 - 使用 Network Volume 存储模型
+# ============================================
+# 所有模型（checkpoints、LoRAs、VAE、ControlNet 等）应存储在 Network Volume 中
+# Network Volume 挂载路径: /runpod-volume
+# 模型目录结构: /runpod-volume/models/checkpoints/, /runpod-volume/models/loras/, 等
+# 
+# extra_model_paths.yaml 已复制到 /comfyui/ 目录，ComfyUI 会自动读取此配置
+# 配置内容：base_path: /runpod-volume
+# 
+# 配置步骤：
+# 1. 在 RunPod 控制台创建 Network Volume
+# 2. 将模型上传到 Network Volume（使用临时 Pod 或直接上传）
+# 3. 在 Endpoint 配置中附加 Network Volume
+# 
+# 详细说明请参考: docs/network-volume-setup.md
+# ============================================
 
-# WAN2.2 Checkpoint model (commented out - uncomment if needed)
- RUN wget -q  -O $COMFYUI_PATH/models/checkpoints/Wan2.2/wan2.2-i2v-rapid-aio-v10-nsfw.safetensors \
-     "https://huggingface.co/Phr00t/WAN2.2-14B-Rapid-AllInOne/resolve/main/v10/wan2.2-i2v-rapid-aio-v10-nsfw.safetensors"
-
-# Download all additional models in a single RUN command to reduce image layers
-RUN wget -q -O $COMFYUI_PATH/models/clip_vision/wan/clip_vision_h.safetensors \
-    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/pulid/ip-adapter_pulid_sdxl_fp16.safetensors \
-    "https://huggingface.co/huchenlei/ipadapter_pulid/resolve/main/ip-adapter_pulid_sdxl_fp16.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/insightface/inswapper_128.onnx \
-    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" && \
-    wget -q -O $COMFYUI_PATH/models/reswapper/reswapper_128.onnx \
-    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/reswapper_128.onnx" && \
-    wget -q -O $COMFYUI_PATH/models/hyperswap/hyperswap_1a_256.onnx \
-    "https://huggingface.co/facefusion/models-3.3.0/resolve/main/hyperswap_1a_256.onnx" && \
-    wget -q -O $COMFYUI_PATH/models/hyperswap/hyperswap_1b_256.onnx \
-    "https://huggingface.co/facefusion/models-3.3.0/resolve/main/hyperswap_1b_256.onnx" && \
-    wget -q -O $COMFYUI_PATH/models/hyperswap/hyperswap_1c_256.onnx \
-    "https://huggingface.co/facefusion/models-3.3.0/resolve/main/hyperswap_1c_256.onnx" && \
-    wget -q -O $COMFYUI_PATH/models/upscale_models/RealESRGAN_x2.pth \
-    "https://huggingface.co/ai-forever/Real-ESRGAN/resolve/main/RealESRGAN_x2.pth" && \
-    wget -q -O $COMFYUI_PATH/models/facerestore_models/GFPGANv1.4.pth \
-    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/facerestore_models/GFPGANv1.4.pth" && \
-    wget -q -O $COMFYUI_PATH/models/facerestore_models/GPEN-BFR-512.onnx \
-    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/facerestore_models/GPEN-BFR-512.onnx" && \
-    wget -q -O $COMFYUI_PATH/models/loras/SDXL/subtle-analsex-xl3.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/SDXL/subtle-analsex-xl3.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/SDXL/LCMV2-PONYplus-PAseer.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/SDXL/LCMV2-PONYplus-PAseer.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/DR34MJOB_I2V_14b_HighNoise.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/DR34MJOB_I2V_14b_HighNoise.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/DR34MJOB_I2V_14b_LowNoise.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/DR34MJOB_I2V_14b_LowNoise.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/W22_NSFW_Posing_Nude_i2v_HN_v1.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/W22_NSFW_Posing_Nude_i2v_HN_v1.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/W22_NSFW_Posing_Nude_i2v_LN_v1.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/W22_NSFW_Posing_Nude_i2v_LN_v1.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/huge-titfuck-high.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/huge-titfuck-high.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/huge-titfuck-low.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/huge-titfuck-low.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/mql_massage_tits_wan22_i2v_v1_high_noise.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/mql_massage_tits_wan22_i2v_v1_high_noise.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/mql_massage_tits_wan22_i2v_v1_low_noise.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/mql_massage_tits_wan22_i2v_v1_low_noise.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/nsfw_wan_14b_spooning_leg_lifted_sex_position.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/nsfw_wan_14b_spooning_leg_lifted_sex_position.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/pworship_high_noise.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/pworship_high_noise.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/pworship_low_noise.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/pworship_low_noise.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/spanking_for_wan_v1_e128.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/spanking_for_wan_v1_e128.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/sockjob_wan_v1.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/sockjob_wan_v1.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/wan-thiccum-v3.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/wan-thiccum-v3.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/wan2.2-i2v-high-oral-insertion-v1.0.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/wan2.2-i2v-high-oral-insertion-v1.0.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/wan2.2-i2v-low-oral-insertion-v1.0.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/wan2.2-i2v-low-oral-insertion-v1.0.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/wan22-jellyhips-i2v-13epoc-high-k3nk.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/wan22-jellyhips-i2v-13epoc-high-k3nk.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/wan22-jellyhips-i2v-23epoc-low-k3nk.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/wan22-jellyhips-i2v-23epoc-low-k3nk.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/wan_shoejob_footjob_14B_v10_e15.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/wan_shoejob_footjob_14B_v10_e15.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/zurimix-high-i2v.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/zurimix-high-i2v.safetensors" && \
-    wget -q -O $COMFYUI_PATH/models/loras/Wan2.2/zurimix-low-i2v.safetensors \
-    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/zurimix-low-i2v.safetensors"
-
-# Pre-download BLIP models to avoid runtime download failures
-# BLIP models are used by was-node-suite-comfyui for image captioning and VQA
-# According to was-node-suite-comfyui, it uses /comfyui/models/blip as cache_dir
-# We download models using transformers library which will place them correctly
-RUN mkdir -p $COMFYUI_PATH/models/blip && \
-    python3 -c "from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQuestionAnswering; \
-    import os; \
-    blip_cache = '/comfyui/models/blip'; \
-    os.environ['HF_HUB_CACHE'] = blip_cache; \
-    print('Downloading BLIP image captioning model...'); \
-    BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache); \
-    BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache); \
-    print('Downloading BLIP VQA model...'); \
-    BlipProcessor.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache); \
-    BlipForQuestionAnswering.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache); \
-    print('BLIP models downloaded successfully')"
