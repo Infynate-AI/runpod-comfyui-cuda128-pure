@@ -13,6 +13,17 @@ import uuid
 import tempfile
 import socket
 import traceback
+import logging
+
+# Configure logging to reduce numba verbose output
+# Numba's SSA block analysis and other debug logs can be very verbose
+# Set numba logger to WARNING level to suppress DEBUG/INFO messages
+numba_logger = logging.getLogger('numba')
+numba_logger.setLevel(logging.WARNING)
+
+# Also suppress numba.core logger
+numba_core_logger = logging.getLogger('numba.core')
+numba_core_logger.setLevel(logging.WARNING)
 
 # Time to wait between API check attempts in milliseconds
 COMFY_API_AVAILABLE_INTERVAL_MS = 50
@@ -901,6 +912,20 @@ def handler(job):
                         else:
                             # Return as base64 string
                             try:
+                                # Check file size before encoding (videos can be very large)
+                                file_size_mb = len(file_bytes) / (1024 * 1024)
+                                max_size_mb = 100  # 100MB limit for base64 encoding
+                                
+                                if is_video and file_size_mb > max_size_mb:
+                                    error_msg = (
+                                        f"Video file {filename} is too large ({file_size_mb:.2f} MB) "
+                                        f"for base64 encoding (max {max_size_mb} MB). "
+                                        f"Please configure S3 upload (BUCKET_ENDPOINT_URL) for large files."
+                                    )
+                                    print(f"worker-comfyui - {error_msg}")
+                                    errors.append(error_msg)
+                                    continue
+                                
                                 base64_data = base64.b64encode(file_bytes).decode("utf-8")
                                 # For videos, add data URI prefix similar to images
                                 if is_video:
@@ -933,10 +958,19 @@ def handler(job):
                                         "data": base64_data,
                                     }
                                 )
-                                print(f"worker-comfyui - Encoded {filename} as base64 ({media_type})")
+                                print(f"worker-comfyui - Encoded {filename} as base64 ({media_type}, {file_size_mb:.2f} MB)")
+                            except MemoryError as e:
+                                error_msg = (
+                                    f"Out of memory while encoding {filename} to base64. "
+                                    f"File size: {len(file_bytes) / (1024 * 1024):.2f} MB. "
+                                    f"Please configure S3 upload (BUCKET_ENDPOINT_URL) for large files."
+                                )
+                                print(f"worker-comfyui - {error_msg}")
+                                errors.append(error_msg)
                             except Exception as e:
                                 error_msg = f"Error encoding {filename} to base64: {e}"
                                 print(f"worker-comfyui - {error_msg}")
+                                print(traceback.format_exc())
                                 errors.append(error_msg)
                     else:
                         error_msg = f"Failed to fetch {media_type} data for {filename} from /view endpoint."
