@@ -38,8 +38,9 @@ runpod_worker_comfy:
   
   # Vision and detection models
   photomaker: models/photomaker/
-  sams: models/sams/
+  sams: models/sams/  # SAM models for ComfyUI-ReActor
   mmdets: models/mmdets/
+  ultralytics: models/ultralytics/  # Ultralytics models for ComfyUI-ReActor (bbox detection)
   grounding-dino: models/grounding-dino/
   depthanything: models/depthanything/
   florence2: models/florence2/

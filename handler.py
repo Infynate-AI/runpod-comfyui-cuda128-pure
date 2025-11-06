@@ -825,6 +825,13 @@ def handler(job):
                     f"worker-comfyui - Node {node_id} contains {len(media_files)} media file(s)"
                 )
                 for image_info in media_files:
+                    # Skip non-dict items (e.g., bool values that might be in the list)
+                    if not isinstance(image_info, dict):
+                        warn_msg = f"Skipping non-dict media file in node {node_id}: {type(image_info).__name__} = {image_info}"
+                        print(f"worker-comfyui - {warn_msg}")
+                        errors.append(warn_msg)
+                        continue
+                    
                     filename = image_info.get("filename")
                     subfolder = image_info.get("subfolder", "")
                     img_type = image_info.get("type")

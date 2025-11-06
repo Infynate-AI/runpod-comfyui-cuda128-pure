@@ -45,6 +45,8 @@ mkdir -p "$MODELS_DIR/loras/Wan2.2"
 mkdir -p "$MODELS_DIR/blip"
 mkdir -p "$MODELS_DIR/diffusion_models"
 mkdir -p "$MODELS_DIR/prompt_generator/MiniCPM-V-2_6-int4"
+mkdir -p "$MODELS_DIR/ultralytics/bbox"
+mkdir -p "$MODELS_DIR/sams"
 echo "✓ 目录结构创建完成"
 echo ""
 
@@ -126,18 +128,18 @@ echo "=========================================="
 echo "下载 ReActor 和 HyperSwap 模型"
 echo "=========================================="
 
-# inswapper_128.onnx 需要同时放在 insightface 和 reswapper 目录
-# ComfyUI-ReActor 的 swap_model 从 reswapper 目录读取
+# 根据官方文档：inswapper_128 放在 ComfyUI\models\insightface
+# 但 swap_model 参数可能从 reswapper 目录读取，所以同时放在两个目录
+download_file \
+    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" \
+    "$MODELS_DIR/insightface/inswapper_128.onnx" \
+    "ReActor inswapper (官方路径: insightface)"
+
+# 也放在 reswapper 目录（swap_model 参数可能需要）
 download_file \
     "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" \
     "$MODELS_DIR/reswapper/inswapper_128.onnx" \
     "ReActor inswapper (for swap_model)"
-
-# 也放在 insightface 目录（某些节点可能需要）
-download_file \
-    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" \
-    "$MODELS_DIR/insightface/inswapper_128.onnx" \
-    "ReActor inswapper (for insightface)"
 
 download_file \
     "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/reswapper_128.onnx" \
