@@ -237,19 +237,7 @@ done
 
 echo ""
 
-# ============================================
-# WanVideo 工作流所需的 Diffusion 模型
-# ============================================
-echo "=========================================="
-echo "下载 WanVideo 工作流所需的 Diffusion 模型"
-echo "=========================================="
 
-download_file \
-    "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors" \
-    "$MODELS_DIR/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors" \
-    "Wan2.2 I2V Low Noise Diffusion Model"
-
-echo ""
 
 # ============================================
 # MiniCPM-V-2_6-int4 模型（使用 huggingface_hub 下载整个目录）
@@ -314,8 +302,26 @@ echo "下载 BLIP 模型（用于图像描述）"
 echo "=========================================="
 
 if command -v python3 &> /dev/null; then
-    echo "使用 Python transformers 下载 BLIP 模型..."
-    python3 << PYTHON_SCRIPT
+    # 检查并安装 transformers
+    echo "检查 transformers 是否已安装..."
+    continue_section=false
+    if ! python3 -c "import transformers" 2>/dev/null; then
+        echo "transformers 未安装，正在自动安装..."
+        if pip install --quiet transformers 2>/dev/null || pip3 install --quiet transformers 2>/dev/null; then
+            echo "✓ transformers 安装完成"
+            continue_section=true
+        else
+            echo "✗ 无法安装 transformers，跳过 BLIP 模型下载"
+            echo "  提示: 请手动安装: pip install transformers"
+        fi
+    else
+        echo "✓ transformers 已安装"
+        continue_section=true
+    fi
+    
+    if [ "$continue_section" = "true" ]; then
+        echo "使用 Python transformers 下载 BLIP 模型..."
+        python3 << PYTHON_SCRIPT
 from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQuestionAnswering
 import os
 
@@ -332,6 +338,7 @@ BlipForQuestionAnswering.from_pretrained('Salesforce/blip-vqa-base', cache_dir=b
 
 print('✓ BLIP 模型下载完成')
 PYTHON_SCRIPT
+    fi
 else
     echo "⚠ Python3 未找到，跳过 BLIP 模型下载"
     echo "  提示: BLIP 模型会在首次使用时自动下载"

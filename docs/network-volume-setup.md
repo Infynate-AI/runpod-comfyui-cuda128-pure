@@ -38,9 +38,23 @@
 
 > 💡 **提示**：Network Volume 按存储容量计费，建议根据实际需求选择大小。
 
-### 步骤 2: 准备模型目录结构
+### 步骤 2: 理解挂载点差异
 
-Network Volume 挂载到容器内的 `/runpod-volume`，ComfyUI 会自动从以下路径加载模型：
+**重要说明**：
+- `/workspace` **不是根目录**，而是根目录 (`/`) 下的一个子目录
+- 在 **临时 Pod** 中，Network Volume 通常挂载在 `/workspace`
+- 在 **Endpoint** 中，Network Volume 挂载在 `/runpod-volume`（本项目配置）
+- **无论挂载点在哪里，模型文件都在同一个 Network Volume 中**
+- 本项目配置 (`extra_model_paths.yaml`) 使用 `/runpod-volume` 作为模型路径
+
+**实际操作**：
+- 在临时 Pod 中下载模型到 `/workspace/models/`
+- 在 Endpoint 中，ComfyUI 会从 `/runpod-volume/models/` 读取
+- 由于是同一个 Volume，文件会自动同步
+
+### 步骤 3: 准备模型目录结构
+
+Network Volume 挂载到容器内的 `/runpod-volume`（Endpoint 中）或 `/workspace`（临时 Pod 中），ComfyUI 会自动从以下路径加载模型：
 
 ```
 /runpod-volume/
@@ -131,8 +145,16 @@ Network Volume 挂载到容器内的 `/runpod-volume`，ComfyUI 会自动从以�
 
 1. **在临时 Pod 中克隆仓库**（或上传脚本）：
    ```bash
-   # 如果 Network Volume 挂载在 /workspace
+   # 首先确认 Network Volume 的挂载点
+   # 在 RunPod 临时 Pod 中，Network Volume 通常挂载在 /workspace 或 /runpod-volume
+   # 检查挂载点：
+   df -h | grep -E "workspace|runpod-volume"
+   
+   # 如果挂载在 /workspace（临时 Pod 的常见情况）
    cd /workspace
+   
+   # 如果挂载在 /runpod-volume（Endpoint 中的挂载点）
+   # cd /runpod-volume
    
    # 克隆仓库（或直接上传脚本文件）
    git clone https://github.com/ultimatech-cn/runpod-comfyui-cuda128-pure.git
@@ -141,11 +163,22 @@ Network Volume 挂载到容器内的 `/runpod-volume`，ComfyUI 会自动从以�
 
 2. **运行下载脚本**：
    ```bash
-   # 如果 Network Volume 挂载在 /workspace（默认）
-   bash scripts/download-models-to-volume.sh
+   # 重要：本项目配置使用 /runpod-volume 作为模型路径
+   # 即使临时 Pod 中挂载在 /workspace，也需要指定正确的路径
    
-   # 或者指定挂载路径（如果挂载在其他位置，如 /runpod-volume）
+   # 如果临时 Pod 中 Network Volume 挂载在 /workspace
+   # 但模型最终会被 Endpoint 从 /runpod-volume 读取
+   # 所以需要将模型下载到挂载点的正确位置
+   
+   # 方法 1: 如果临时 Pod 挂载在 /workspace，但需要模拟 /runpod-volume 结构
+   # 创建符号链接或直接使用挂载点
+   bash scripts/download-models-to-volume.sh /workspace
+   
+   # 方法 2: 如果临时 Pod 中 Network Volume 直接挂载在 /runpod-volume
    bash scripts/download-models-to-volume.sh /runpod-volume
+   
+   # 注意：脚本默认使用 /workspace，但本项目配置期望 /runpod-volume
+   # 如果临时 Pod 挂载在 /workspace，下载后需要确保 Endpoint 能正确访问
    ```
 
    脚本会自动：
