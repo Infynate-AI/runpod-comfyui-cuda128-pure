@@ -43,40 +43,19 @@ mkdir -p "$MODELS_DIR/upscale_models"
 mkdir -p "$MODELS_DIR/loras/SDXL"
 mkdir -p "$MODELS_DIR/loras/Wan2.2"
 mkdir -p "$MODELS_DIR/blip"
+mkdir -p "$MODELS_DIR/diffusion_models"
 echo "✓ 目录结构创建完成"
 echo ""
 
-# 下载函数
+# 简单的下载函数：使用 wget -nc 自动跳过已存在的文件
 download_file() {
     local url=$1
     local output_path=$2
     local description=$3
     
-    # 创建输出目录（如果不存在）
     mkdir -p "$(dirname "$output_path")"
-    
-    if [ -f "$output_path" ]; then
-        local file_size=$(stat -f%z "$output_path" 2>/dev/null || stat -c%s "$output_path" 2>/dev/null || echo "0")
-        if [ "$file_size" -gt 0 ]; then
-            echo "⚠ 跳过（已存在）: $description"
-            echo "  文件: $output_path ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size} bytes"))"
-            return 0
-        fi
-    fi
-    
     echo "下载: $description"
-    echo "  URL: $url"
-    echo "  保存到: $output_path"
-    
-    # 使用 wget 下载，支持断点续传
-    if wget -q --show-progress -c -O "$output_path" "$url" 2>&1 | grep -q "saved"; then
-        local file_size=$(stat -f%z "$output_path" 2>/dev/null || stat -c%s "$output_path" 2>/dev/null || echo "0")
-        echo "  ✓ 下载完成 ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size} bytes"))"
-        return 0
-    else
-        echo "  ✗ 下载失败"
-        return 1
-    fi
+    wget -q --show-progress -nc -O "$output_path" "$url" || true
 }
 
 # ============================================
@@ -89,14 +68,11 @@ echo "=========================================="
 if [ ! -d "$MODELS_DIR/insightface/models/antelopev2" ] || [ -z "$(ls -A "$MODELS_DIR/insightface/models/antelopev2" 2>/dev/null)" ]; then
     echo "下载 InsightFace AntelopeV2..."
     TEMP_ZIP="/tmp/antelopev2.zip"
-    if wget -q --show-progress -O "$TEMP_ZIP" "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip"; then
-        echo "  解压到: $MODELS_DIR/insightface/models/"
+    wget -q --show-progress -nc -O "$TEMP_ZIP" "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip" || true
+    if [ -f "$TEMP_ZIP" ]; then
         unzip -q "$TEMP_ZIP" -d "$MODELS_DIR/insightface/models/"
         rm "$TEMP_ZIP"
-        echo "  ✓ InsightFace AntelopeV2 下载并解压完成"
-    else
-        echo "  ✗ InsightFace AntelopeV2 下载失败"
-        exit 1
+        echo "✓ InsightFace AntelopeV2 下载并解压完成"
     fi
 else
     echo "⚠ InsightFace AntelopeV2 已存在，跳过"
@@ -257,6 +233,20 @@ for lora in "${wan22_loras[@]}"; do
         "$MODELS_DIR/loras/Wan2.2/$lora" \
         "Wan2.2 LoRA: $lora"
 done
+
+echo ""
+
+# ============================================
+# WanVideo 工作流所需的 Diffusion 模型
+# ============================================
+echo "=========================================="
+echo "下载 WanVideo 工作流所需的 Diffusion 模型"
+echo "=========================================="
+
+download_file \
+    "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors" \
+    "$MODELS_DIR/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors" \
+    "Wan2.2 I2V Low Noise Diffusion Model"
 
 echo ""
 
