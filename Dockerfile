@@ -100,6 +100,31 @@ RUN git config --global --add safe.directory '*' && \
     git clone --depth 1 https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git ComfyUI-Frame-Interpolation && \
     (cd ComfyUI-Frame-Interpolation && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
     \
+    # Install ComfyUI_tinyterraNodes
+    rm -rf ComfyUI_tinyterraNodes && \
+    git clone --depth 1 https://github.com/TinyTerra/ComfyUI_tinyterraNodes.git ComfyUI_tinyterraNodes && \
+    (cd ComfyUI_tinyterraNodes && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
+    # Install ComfyUI-FSampler
+    rm -rf ComfyUI-FSampler && \
+    git clone --depth 1 https://github.com/obisin/ComfyUI-FSampler.git ComfyUI-FSampler && \
+    (cd ComfyUI-FSampler && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
+    # Install cg-use-everywhere
+    rm -rf cg-use-everywhere && \
+    git clone --depth 1 https://github.com/chrisgoringe/cg-use-everywhere.git cg-use-everywhere && \
+    (cd cg-use-everywhere && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
+    # Install ComfyUI-segment-anything-2
+    rm -rf ComfyUI-segment-anything-2 && \
+    git clone --depth 1 https://github.com/kijai/ComfyUI-segment-anything-2.git ComfyUI-segment-anything-2 && \
+    (cd ComfyUI-segment-anything-2 && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
+    # Install ComfyUI-WanAnimatePreprocess
+    rm -rf ComfyUI-WanAnimatePreprocess && \
+    git clone --depth 1 https://github.com/kijai/ComfyUI-WanAnimatePreprocess.git ComfyUI-WanAnimatePreprocess && \
+    (cd ComfyUI-WanAnimatePreprocess && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
     cd $COMFYUI_PATH
 
 # Support for Network Volume - Copy extra_model_paths.yaml to configure model loading
