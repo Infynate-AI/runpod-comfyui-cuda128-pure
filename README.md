@@ -6,7 +6,7 @@
   <img src="assets/worker_sitting_in_comfy_chair.jpg" title="Worker sitting in comfy chair" />
 </p>
 
-[![Runpod](https://api.runpod.io/badge/ultimatech-cn/runpod-comfyui-cuda128)](https://console.runpod.io/hub/ultimatech-cn/runpod-comfyui-cuda128)
+[![Runpod](https://api.runpod.io/badge/ultimatech-cn/runpod-comfyui-cuda128-pure)](https://console.runpod.io/hub/ultimatech-cn/runpod-comfyui-cuda128-pure)
 
 ---
 
@@ -39,13 +39,13 @@ For the fastest start, refer to the quick guide:
 
 Core steps (Windows example):
 
-1. **Build the image** (first build takes 1.5-5 hours, mainly downloading models)
+1. **Build the image** (optimized build takes 10-30 minutes, models stored in Network Volume)
    ```powershell
-   cd "E:\Program Files\runpod-comfyui-cuda128"
+   cd "E:\Program Files\runpod-comfyui-cuda128-pure"
    docker build --platform linux/amd64 -t runpod-comfyui-cuda128:local .
    ```
    
-   > 💡 **Optimization Tip**: If build time is too long, use the `Dockerfile.optimized` + Network Volume approach to reduce build time to 10-30 minutes. See [Network Volume Setup Guide](docs/network-volume-setup.md)
+   > 💡 **Note**: The Dockerfile is optimized to use Network Volume for models. Build time is 10-30 minutes. See [Network Volume Setup Guide](docs/network-volume-setup.md) for model setup.
 
 2. **Start local environment**
    ```powershell
@@ -301,17 +301,13 @@ To export workflow JSON for API use:
 
 ## Build Optimization
 
-The standard `Dockerfile` includes all models, resulting in:
-- **Build time**: 1.5-5 hours
-- **Image size**: ~92 GB
-- **Push time**: Several hours
-
-To optimize build time, use `Dockerfile.optimized` with Network Volume:
-
-- **Build time**: 10-30 minutes (80-90% reduction)
-- **Image size**: ~5-10 GB (85-90% reduction)
-- **Push time**: 10-30 minutes (80-90% reduction)
+The current `Dockerfile` is optimized to use Network Volume for model storage, resulting in:
+- **Build time**: 10-30 minutes (80-90% faster than including models)
+- **Image size**: ~5-10 GB (85-90% smaller than including models)
+- **Push time**: 10-30 minutes (80-90% faster)
 - **Flexibility**: Update models without rebuilding the image
+
+> **Note**: Models are stored in Network Volume instead of the Docker image. This significantly reduces build time and image size.
 
 See [Network Volume Setup Guide](docs/network-volume-setup.md) for detailed instructions.
 
@@ -372,8 +368,7 @@ docker push your-username/comfyui-cuda128:latest
 ```
 
 **Note**:
-- Using standard `Dockerfile`: Image size ~92GB, local push may take several hours and is prone to network failures
-- Using `Dockerfile.optimized` + Network Volume: Image size ~5-10GB, faster push, see [Network Volume Setup Guide](docs/network-volume-setup.md)
+- Current `Dockerfile` uses Network Volume: Image size ~5-10GB, faster push, see [Network Volume Setup Guide](docs/network-volume-setup.md)
 
 ## Further Documentation
 
