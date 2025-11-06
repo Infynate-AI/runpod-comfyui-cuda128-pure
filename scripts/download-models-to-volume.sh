@@ -36,6 +36,7 @@ mkdir -p "$MODELS_DIR/checkpoints/Wan2.2"
 mkdir -p "$MODELS_DIR/clip_vision/wan"
 mkdir -p "$MODELS_DIR/pulid"
 mkdir -p "$MODELS_DIR/insightface/models"
+mkdir -p "$MODELS_DIR/insightface"  # 确保 insightface 根目录存在（用于 inswapper_128.onnx）
 mkdir -p "$MODELS_DIR/reswapper"
 mkdir -p "$MODELS_DIR/hyperswap"
 mkdir -p "$MODELS_DIR/facerestore_models"
@@ -128,23 +129,54 @@ echo "=========================================="
 echo "下载 ReActor 和 HyperSwap 模型"
 echo "=========================================="
 
-# 根据官方文档：inswapper_128 放在 ComfyUI\models\insightface
-# 但 swap_model 参数可能从 reswapper 目录读取，所以同时放在两个目录
+# 根据 ReActor 官方文档和原始 Dockerfile：
+# - inswapper_128.onnx 应该放在 ComfyUI/models/insightface/ 根目录
+# - reswapper_128.onnx 应该放在 ComfyUI/models/reswapper/ 目录
+# - ReActor 节点的 swap_model 参数可能从 insightface 目录读取 .onnx 文件
+#   但根据原始 Dockerfile，reswapper_128.onnx 是主要的 swap 模型
+
+# 下载 inswapper_128.onnx 到 insightface 目录
 download_file \
     "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" \
     "$MODELS_DIR/insightface/inswapper_128.onnx" \
-    "ReActor inswapper (官方路径: insightface)"
+    "ReActor inswapper (insightface根目录)"
 
-# 也放在 reswapper 目录（swap_model 参数可能需要）
-download_file \
-    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" \
-    "$MODELS_DIR/reswapper/inswapper_128.onnx" \
-    "ReActor inswapper (for swap_model)"
-
+# 下载 reswapper_128.onnx 到 reswapper 目录（这是 swap_model 参数使用的模型）
 download_file \
     "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/reswapper_128.onnx" \
     "$MODELS_DIR/reswapper/reswapper_128.onnx" \
-    "ReActor reswapper"
+    "ReActor reswapper (swap_model参数使用此模型)"
+
+# 也将 reswapper_128.onnx 放在 insightface 目录（某些配置可能需要）
+download_file \
+    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/reswapper_128.onnx" \
+    "$MODELS_DIR/insightface/reswapper_128.onnx" \
+    "ReActor reswapper (insightface目录 - 备用)"
+
+# 验证文件是否下载成功
+echo "验证 ReActor 模型文件..."
+if [ -f "$MODELS_DIR/insightface/inswapper_128.onnx" ]; then
+    echo "✓ inswapper_128.onnx 已下载到 insightface/"
+    ls -lh "$MODELS_DIR/insightface/inswapper_128.onnx" | awk '{print "  文件大小: " $5}'
+else
+    echo "✗ 警告: inswapper_128.onnx 下载失败"
+fi
+
+if [ -f "$MODELS_DIR/reswapper/reswapper_128.onnx" ]; then
+    echo "✓ reswapper_128.onnx 已下载到 reswapper/"
+    ls -lh "$MODELS_DIR/reswapper/reswapper_128.onnx" | awk '{print "  文件大小: " $5}'
+else
+    echo "✗ 警告: reswapper_128.onnx 下载失败"
+fi
+
+if [ -f "$MODELS_DIR/insightface/reswapper_128.onnx" ]; then
+    echo "✓ reswapper_128.onnx 已下载到 insightface/ (备用)"
+    ls -lh "$MODELS_DIR/insightface/reswapper_128.onnx" | awk '{print "  文件大小: " $5}'
+fi
+
+# 列出 insightface 目录中的所有 .onnx 文件，帮助调试
+echo "  insightface 目录中的 .onnx 文件："
+find "$MODELS_DIR/insightface" -name "*.onnx" -type f 2>/dev/null | head -10 || echo "    (未找到 .onnx 文件)"
 
 download_file \
     "https://huggingface.co/facefusion/models-3.3.0/resolve/main/hyperswap_1a_256.onnx" \
