@@ -1,0 +1,77 @@
+# Logs
+logs*.txt
+build-logs-*.txt
+*.log
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+test_resources/
+tests/
+test_local.py
+
+# Build artifacts
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# RunPod specific (not needed for Docker Hub)
+.runpod/
+
+# Assets (not needed in image)
+assets/
+
+# Docker files (not needed in image)
+docker-compose.yml
+docker-bake.hcl
+
+# CI/CD
+.github/
+
+# Scripts (if not needed)
+scripts/
+
+# Source files (if handler.py is the only one needed)
+src/
+
+# Requirements (already in base image or handled in Dockerfile)
+requirements.txt
+
+# Other
+.cursorindexingignore
+.releaserc
+LICENSE
+CHANGELOG.md
+QUICK_START.md
+

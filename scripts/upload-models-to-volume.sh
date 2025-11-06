@@ -1,0 +1,285 @@
+#!/bin/bash
+# 批量上传模型到 Network Volume 的脚本
+# 使用方法：在临时 Pod 中运行此脚本（Network Volume 已挂载到 /workspace）
+
+set -e  # 遇到错误立即退出
+
+VOLUME_PATH="${1:-/workspace}"
+MODELS_DIR="$VOLUME_PATH/models"
+
+echo "=========================================="
+echo "ComfyUI 模型批量下载脚本"
+echo "=========================================="
+echo "目标路径: $MODELS_DIR"
+echo ""
+
+# 创建目录结构
+echo "创建目录结构..."
+mkdir -p "$MODELS_DIR/checkpoints/SDXL"
+mkdir -p "$MODELS_DIR/checkpoints/Wan2.2"
+mkdir -p "$MODELS_DIR/loras/SDXL"
+mkdir -p "$MODELS_DIR/loras/Wan2.2"
+mkdir -p "$MODELS_DIR/clip_vision/wan"
+mkdir -p "$MODELS_DIR/pulid"
+mkdir -p "$MODELS_DIR/insightface/models"
+mkdir -p "$MODELS_DIR/reswapper"
+mkdir -p "$MODELS_DIR/hyperswap"
+mkdir -p "$MODELS_DIR/facerestore_models"
+mkdir -p "$MODELS_DIR/upscale_models"
+mkdir -p "$MODELS_DIR/blip"
+echo "✓ 目录结构创建完成"
+echo ""
+
+# 下载函数
+download_file() {
+    local url=$1
+    local output_path=$2
+    local description=$3
+    
+    if [ -f "$output_path" ]; then
+        echo "⚠ 跳过（已存在）: $description"
+        return 0
+    fi
+    
+    echo "下载: $description"
+    echo "  URL: $url"
+    echo "  保存到: $output_path"
+    
+    if wget -q --show-progress -O "$output_path" "$url"; then
+        echo "  ✓ 下载完成"
+        return 0
+    else
+        echo "  ✗ 下载失败"
+        return 1
+    fi
+}
+
+# ============================================
+# Checkpoint 模型
+# ============================================
+echo "=========================================="
+echo "下载 Checkpoint 模型"
+echo "=========================================="
+
+download_file \
+    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/SDXL/ultraRealisticByStable_v20FP16.safetensors" \
+    "$MODELS_DIR/checkpoints/SDXL/ultraRealisticByStable_v20FP16.safetensors" \
+    "SDXL Checkpoint"
+
+download_file \
+    "https://huggingface.co/Phr00t/WAN2.2-14B-Rapid-AllInOne/resolve/main/v10/wan2.2-i2v-rapid-aio-v10-nsfw.safetensors" \
+    "$MODELS_DIR/checkpoints/Wan2.2/wan2.2-i2v-rapid-aio-v10-nsfw.safetensors" \
+    "WAN2.2 Checkpoint"
+
+echo ""
+
+# ============================================
+# CLIP Vision 和 PuLID 模型
+# ============================================
+echo "=========================================="
+echo "下载 CLIP Vision 和 PuLID 模型"
+echo "=========================================="
+
+download_file \
+    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors" \
+    "$MODELS_DIR/clip_vision/wan/clip_vision_h.safetensors" \
+    "CLIP Vision (WAN)"
+
+download_file \
+    "https://huggingface.co/huchenlei/ipadapter_pulid/resolve/main/ip-adapter_pulid_sdxl_fp16.safetensors" \
+    "$MODELS_DIR/pulid/ip-adapter_pulid_sdxl_fp16.safetensors" \
+    "PuLID IP-Adapter"
+
+echo ""
+
+# ============================================
+# InsightFace 模型
+# ============================================
+echo "=========================================="
+echo "下载 InsightFace 模型"
+echo "=========================================="
+
+if [ ! -d "$MODELS_DIR/insightface/models/antelopev2" ]; then
+    echo "下载 InsightFace AntelopeV2..."
+    TEMP_ZIP="/tmp/antelopev2.zip"
+    if wget -q --show-progress -O "$TEMP_ZIP" "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip"; then
+        unzip -q "$TEMP_ZIP" -d "$MODELS_DIR/insightface/models/"
+        rm "$TEMP_ZIP"
+        echo "✓ InsightFace AntelopeV2 下载并解压完成"
+    else
+        echo "✗ InsightFace AntelopeV2 下载失败"
+    fi
+else
+    echo "⚠ InsightFace AntelopeV2 已存在，跳过"
+fi
+
+echo ""
+
+# ============================================
+# ReActor 和 HyperSwap 模型
+# ============================================
+echo "=========================================="
+echo "下载 ReActor 和 HyperSwap 模型"
+echo "=========================================="
+
+download_file \
+    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" \
+    "$MODELS_DIR/insightface/inswapper_128.onnx" \
+    "ReActor inswapper"
+
+download_file \
+    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/reswapper_128.onnx" \
+    "$MODELS_DIR/reswapper/reswapper_128.onnx" \
+    "ReActor reswapper"
+
+download_file \
+    "https://huggingface.co/facefusion/models-3.3.0/resolve/main/hyperswap_1a_256.onnx" \
+    "$MODELS_DIR/hyperswap/hyperswap_1a_256.onnx" \
+    "HyperSwap 1a"
+
+download_file \
+    "https://huggingface.co/facefusion/models-3.3.0/resolve/main/hyperswap_1b_256.onnx" \
+    "$MODELS_DIR/hyperswap/hyperswap_1b_256.onnx" \
+    "HyperSwap 1b"
+
+download_file \
+    "https://huggingface.co/facefusion/models-3.3.0/resolve/main/hyperswap_1c_256.onnx" \
+    "$MODELS_DIR/hyperswap/hyperswap_1c_256.onnx" \
+    "HyperSwap 1c"
+
+echo ""
+
+# ============================================
+# 面部修复和超分辨率模型
+# ============================================
+echo "=========================================="
+echo "下载面部修复和超分辨率模型"
+echo "=========================================="
+
+download_file \
+    "https://huggingface.co/ai-forever/Real-ESRGAN/resolve/main/RealESRGAN_x2.pth" \
+    "$MODELS_DIR/upscale_models/RealESRGAN_x2.pth" \
+    "RealESRGAN x2"
+
+download_file \
+    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/facerestore_models/GFPGANv1.4.pth" \
+    "$MODELS_DIR/facerestore_models/GFPGANv1.4.pth" \
+    "GFPGAN v1.4"
+
+download_file \
+    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/facerestore_models/GPEN-BFR-512.onnx" \
+    "$MODELS_DIR/facerestore_models/GPEN-BFR-512.onnx" \
+    "GPEN-BFR-512"
+
+echo ""
+
+# ============================================
+# LoRA 模型 (SDXL)
+# ============================================
+echo "=========================================="
+echo "下载 LoRA 模型 (SDXL)"
+echo "=========================================="
+
+download_file \
+    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/SDXL/subtle-analsex-xl3.safetensors" \
+    "$MODELS_DIR/loras/SDXL/subtle-analsex-xl3.safetensors" \
+    "SDXL LoRA: subtle-analsex-xl3"
+
+download_file \
+    "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/SDXL/LCMV2-PONYplus-PAseer.safetensors" \
+    "$MODELS_DIR/loras/SDXL/LCMV2-PONYplus-PAseer.safetensors" \
+    "SDXL LoRA: LCMV2-PONYplus-PAseer"
+
+echo ""
+
+# ============================================
+# LoRA 模型 (Wan2.2)
+# ============================================
+echo "=========================================="
+echo "下载 LoRA 模型 (Wan2.2)"
+echo "=========================================="
+
+# 定义 Wan2.2 LoRA 列表
+declare -a wan22_loras=(
+    "DR34MJOB_I2V_14b_HighNoise.safetensors"
+    "DR34MJOB_I2V_14b_LowNoise.safetensors"
+    "W22_NSFW_Posing_Nude_i2v_HN_v1.safetensors"
+    "W22_NSFW_Posing_Nude_i2v_LN_v1.safetensors"
+    "huge-titfuck-high.safetensors"
+    "huge-titfuck-low.safetensors"
+    "mql_massage_tits_wan22_i2v_v1_high_noise.safetensors"
+    "mql_massage_tits_wan22_i2v_v1_low_noise.safetensors"
+    "nsfw_wan_14b_spooning_leg_lifted_sex_position.safetensors"
+    "pworship_high_noise.safetensors"
+    "pworship_low_noise.safetensors"
+    "spanking_for_wan_v1_e128.safetensors"
+    "sockjob_wan_v1.safetensors"
+    "wan-thiccum-v3.safetensors"
+    "wan2.2-i2v-high-oral-insertion-v1.0.safetensors"
+    "wan2.2-i2v-low-oral-insertion-v1.0.safetensors"
+    "wan22-jellyhips-i2v-13epoc-high-k3nk.safetensors"
+    "wan22-jellyhips-i2v-23epoc-low-k3nk.safetensors"
+    "wan_shoejob_footjob_14B_v10_e15.safetensors"
+    "zurimix-high-i2v.safetensors"
+    "zurimix-low-i2v.safetensors"
+)
+
+for lora in "${wan22_loras[@]}"; do
+    download_file \
+        "https://huggingface.co/datasets/Robin9527/LoRA/resolve/main/Wan22/$lora" \
+        "$MODELS_DIR/loras/Wan2.2/$lora" \
+        "Wan2.2 LoRA: $lora"
+done
+
+echo ""
+
+# ============================================
+# BLIP 模型（可选，使用 transformers 下载）
+# ============================================
+echo "=========================================="
+echo "下载 BLIP 模型（用于图像描述）"
+echo "=========================================="
+
+if command -v python3 &> /dev/null; then
+    echo "使用 Python transformers 下载 BLIP 模型..."
+    python3 << 'PYTHON_SCRIPT'
+from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQuestionAnswering
+import os
+
+blip_cache = '/workspace/models/blip'
+os.environ['HF_HUB_CACHE'] = blip_cache
+
+print('下载 BLIP 图像描述模型...')
+BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache)
+BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache)
+
+print('下载 BLIP VQA 模型...')
+BlipProcessor.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache)
+BlipForQuestionAnswering.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache)
+
+print('✓ BLIP 模型下载完成')
+PYTHON_SCRIPT
+else
+    echo "⚠ Python3 未找到，跳过 BLIP 模型下载"
+fi
+
+echo ""
+
+# ============================================
+# 完成
+# ============================================
+echo "=========================================="
+echo "下载完成！"
+echo "=========================================="
+echo ""
+echo "模型存储位置: $MODELS_DIR"
+echo ""
+echo "目录结构："
+tree -L 3 "$MODELS_DIR" 2>/dev/null || find "$MODELS_DIR" -type f | head -20
+echo ""
+echo "下一步："
+echo "1. 验证模型文件是否完整"
+echo "2. 在 Endpoint 配置中附加此 Network Volume"
+echo "3. 部署优化版镜像（使用 Dockerfile.optimized）"
+echo ""
+

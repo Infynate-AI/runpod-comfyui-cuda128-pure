@@ -1,0 +1,21 @@
+services:
+  comfyui-worker:
+    # 本地测试时使用: runpod-comfyui-cuda128:local
+    # 或使用: runpod/worker-comfyui:dev (开发模式)
+    image: runpod-comfyui-cuda128:local
+    pull_policy: never
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - SERVE_API_LOCALLY=true
+    ports:
+      - "8000:8000"
+      - "8188:8188"
+    volumes:
+      - ./data/comfyui/output:/comfyui/output
+      - ./data/runpod-volume:/runpod-volume

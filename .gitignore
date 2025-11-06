@@ -1,0 +1,45 @@
+.DS_Store
+venv
+.env
+data
+models
+simulated_uploaded
+__pycache__
+.specstory/
+
+# Log files
+logs*.txt
+*.log
+
+# Test file copies (backup/test files)
+test_input copy*.json
+test_resources/test_input copy*.json
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker
+.docker/
+
+# Local test files
+test_local.py
