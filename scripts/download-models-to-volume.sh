@@ -44,6 +44,7 @@ mkdir -p "$MODELS_DIR/loras/SDXL"
 mkdir -p "$MODELS_DIR/loras/Wan2.2"
 mkdir -p "$MODELS_DIR/blip"
 mkdir -p "$MODELS_DIR/diffusion_models"
+mkdir -p "$MODELS_DIR/prompt_generator/MiniCPM-V-2_6-int4"
 echo "✓ 目录结构创建完成"
 echo ""
 
@@ -247,6 +248,41 @@ download_file \
     "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors" \
     "$MODELS_DIR/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors" \
     "Wan2.2 I2V Low Noise Diffusion Model"
+
+echo ""
+
+# ============================================
+# MiniCPM-V-2_6-int4 模型（使用 huggingface_hub 下载整个目录）
+# ============================================
+echo "=========================================="
+echo "下载 MiniCPM-V-2_6-int4 模型"
+echo "=========================================="
+
+if command -v python3 &> /dev/null; then
+    echo "使用 Python huggingface_hub 下载 MiniCPM-V-2_6-int4 模型..."
+    python3 << PYTHON_SCRIPT
+from huggingface_hub import snapshot_download
+import os
+
+model_dir = '$MODELS_DIR/prompt_generator/MiniCPM-V-2_6-int4'
+os.makedirs(model_dir, exist_ok=True)
+
+print('下载 MiniCPM-V-2_6-int4 模型（完整目录）...')
+try:
+    snapshot_download(
+        repo_id='openbmb/MiniCPM-V-2_6-int4',
+        local_dir=model_dir,
+        local_dir_use_symlinks=False
+    )
+    print('✓ MiniCPM-V-2_6-int4 模型下载完成')
+except Exception as e:
+    print(f'✗ 下载失败: {e}')
+    print('提示: 请确保已安装 huggingface_hub: pip install huggingface_hub')
+PYTHON_SCRIPT
+else
+    echo "⚠ Python3 未找到，跳过 MiniCPM-V-2_6-int4 模型下载"
+    echo "  提示: 请安装 Python3 和 huggingface_hub: pip install huggingface_hub"
+fi
 
 echo ""
 

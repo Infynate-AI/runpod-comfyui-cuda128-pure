@@ -66,3 +66,4 @@ runpod_worker_comfy:
   CatVTON: models/CatVTON/
   Janus-Pro: models/Janus-Pro/
   Flux-version-LayerDiffuse: models/Flux-version-LayerDiffuse/
+  prompt_generator: models/prompt_generator/  # MiniCPM-V-2_6-int4 and other prompt generation models
