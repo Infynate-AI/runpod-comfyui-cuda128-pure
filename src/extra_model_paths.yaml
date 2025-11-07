@@ -7,6 +7,7 @@ comfyui:
   diffusion_models: models/diffusion_models/
   loras: models/loras/
   text_encoders: models/text_encoders/
+  upscale_models: models/upscale_models/
   vae: models/vae/
   sam2: models/sam2/
 
@@ -18,5 +19,6 @@ runpod_worker_comfy:
   diffusion_models: models/diffusion_models/
   loras: models/loras/
   text_encoders: models/text_encoders/
+  upscale_models: models/upscale_models/
   vae: models/vae/
   sam2: models/sam2/

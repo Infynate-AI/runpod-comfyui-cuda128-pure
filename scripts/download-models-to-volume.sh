@@ -35,6 +35,7 @@ mkdir -p "$MODELS_DIR/text_encoders"
 mkdir -p "$MODELS_DIR/vae/Wan2.1"
 mkdir -p "$MODELS_DIR/clip_vision/wan"
 mkdir -p "$MODELS_DIR/loras/Wan2.2"
+mkdir -p "$MODELS_DIR/upscale_models"
 mkdir -p "$MODELS_DIR/sam2"
 echo "✓ 目录结构创建完成"
 echo ""
@@ -167,6 +168,19 @@ download_file \
 echo ""
 
 # ============================================
+# Upscale Models
+# ============================================
+echo "=========================================="
+echo "下载 Upscale Models"
+echo "=========================================="
+
+download_file \
+    "https://huggingface.co/datasets/Robin9527/upscale_models/resolve/main/2xLiveActionV1_SPAN_490000.pth" \
+    "$MODELS_DIR/upscale_models/2xLiveActionV1_SPAN_490000.pth"
+
+echo ""
+
+# ============================================
 # SAM2 Models
 # ============================================
 echo "=========================================="
@@ -231,6 +245,7 @@ echo "  Text Encoders: $(find "$MODELS_DIR/text_encoders" -type f 2>/dev/null | 
 echo "  VAE: $(find "$MODELS_DIR/vae" -type f 2>/dev/null | wc -l) 个文件"
 echo "  CLIP Vision: $(find "$MODELS_DIR/clip_vision" -type f 2>/dev/null | wc -l) 个文件"
 echo "  LoRAs: $(find "$MODELS_DIR/loras" -type f 2>/dev/null | wc -l) 个文件"
+echo "  Upscale Models: $(find "$MODELS_DIR/upscale_models" -type f 2>/dev/null | wc -l) 个文件"
 echo "  SAM2: $(find "$MODELS_DIR/sam2" -type f 2>/dev/null | wc -l) 个文件"
 echo ""
 echo "下一步："
