@@ -105,6 +105,10 @@ download_file \
     "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-fp8_e4m3fn.safetensors" \
     "$MODELS_DIR/text_encoders/umt5-xxl-enc-fp8_e4m3fn.safetensors"
 
+download_file \
+    "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" \
+    "$MODELS_DIR/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+
 echo ""
 
 # ============================================
