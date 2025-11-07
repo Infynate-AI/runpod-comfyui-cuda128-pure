@@ -37,9 +37,11 @@ Configure these variables **only** if you want the worker to upload generated im
 
 | Environment Variable       | Description                                                                                                                             | Example                                                    |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `BUCKET_ENDPOINT_URL`      | The full endpoint URL of your S3 bucket. **Must be set to enable S3 upload.**                                                           | `https://<your-bucket-name>.s3.<aws-region>.amazonaws.com` |
+| `BUCKET_ENDPOINT_URL`      | The full endpoint URL of your S3 bucket. **Must be set to enable S3 upload.** For RunPod S3, include bucket name in URL.                | `https://s3api-eu-ro-1.runpod.io/your-bucket-name`<br>`https://<bucket>.s3.<region>.amazonaws.com` |
 | `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID associated with the IAM user that has write permissions to the bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `AKIAIOSFODNN7EXAMPLE`                                     |
 | `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key associated with the IAM user. Required if `BUCKET_ENDPOINT_URL` is set.                                      | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                 |
+
+**Note for RunPod S3:** The handler automatically detects the region from `BUCKET_ENDPOINT_URL` (e.g., `eu-ro-1` from `https://s3api-eu-ro-1.runpod.io/bucket-name`). If auto-detection fails, you can manually set `AWS_DEFAULT_REGION` environment variable.
 
 **Note:** Upload uses the `runpod` Python library helper `rp_upload.upload_image`, which handles creating a unique path within the bucket based on the `job_id`.
 
