@@ -30,6 +30,31 @@ os.environ.setdefault('NUMBA_DEBUG_BACKEND', '0')
 os.environ.setdefault('NUMBA_DISABLE_PERFORMANCE_WARNINGS', '1')
 os.environ.setdefault('NUMBA_LOG_LEVEL', 'ERROR')
 
+# Set AWS region for S3 uploads (if BUCKET_ENDPOINT_URL is set)
+# RunPod S3 requires correct region configuration
+# Extract region from BUCKET_ENDPOINT_URL if it contains region info
+bucket_endpoint = os.environ.get("BUCKET_ENDPOINT_URL", "")
+if bucket_endpoint:
+    # Try to extract region from endpoint URL
+    # Examples:
+    # - https://s3api-eu-ro-1.runpod.io/bucket-name -> eu-ro-1
+    # - https://bucket.s3.us-east-1.amazonaws.com -> us-east-1
+    import re
+    region_match = re.search(r's3api-([a-z0-9-]+)\.runpod\.io', bucket_endpoint)
+    if region_match:
+        aws_region = region_match.group(1)
+        os.environ['AWS_DEFAULT_REGION'] = aws_region
+        os.environ['AWS_REGION'] = aws_region
+        print(f"worker-comfyui: Detected S3 region from endpoint: {aws_region}")
+    elif 's3.' in bucket_endpoint and 'amazonaws.com' in bucket_endpoint:
+        # AWS S3 format: https://bucket.s3.region.amazonaws.com
+        region_match = re.search(r's3\.([a-z0-9-]+)\.amazonaws\.com', bucket_endpoint)
+        if region_match:
+            aws_region = region_match.group(1)
+            os.environ['AWS_DEFAULT_REGION'] = aws_region
+            os.environ['AWS_REGION'] = aws_region
+            print(f"worker-comfyui: Detected AWS S3 region from endpoint: {aws_region}")
+
 # Set Hugging Face cache directories for BLIP and other transformers models
 # Priority: Network Volume > Image default path
 # transformers library stores models in cache_dir/models--Salesforce--blip-vqa-base/ structure
