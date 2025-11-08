@@ -100,9 +100,9 @@ fi
 
 echo "worker-comfyui: Starting ComfyUI"
 
-# Allow operators to tweak verbosity; default is INFO (changed from DEBUG to reduce log volume)
-# Set COMFY_LOG_LEVEL=DEBUG only when troubleshooting
-: "${COMFY_LOG_LEVEL:=INFO}"
+# Allow operators to tweak verbosity; default is WARNING to minimize log volume
+# Set COMFY_LOG_LEVEL=INFO or DEBUG only when troubleshooting
+: "${COMFY_LOG_LEVEL:=WARNING}"
 
 # Serve the API and don't shutdown the container
 if [ "$SERVE_API_LOCALLY" == "true" ]; then

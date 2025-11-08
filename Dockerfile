@@ -135,6 +135,16 @@ RUN git config --global --add safe.directory '*' && \
     git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git RES4LYF && \
     (cd RES4LYF && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
     \
+    # Install comfyui_controlnet_aux (ControlNet Auxiliary Preprocessors)
+    rm -rf comfyui_controlnet_aux && \
+    git clone --depth 1 https://github.com/Fannovel16/comfyui_controlnet_aux.git comfyui_controlnet_aux && \
+    (cd comfyui_controlnet_aux && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
+    # Install ComfyUI-WanVideoWrapper (WanVideo wrapper nodes and related models)
+    rm -rf ComfyUI-WanVideoWrapper && \
+    git clone --depth 1 https://github.com/kijai/ComfyUI-WanVideoWrapper.git ComfyUI-WanVideoWrapper && \
+    (cd ComfyUI-WanVideoWrapper && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
     cd $COMFYUI_PATH
 
 # Support for Network Volume - Copy extra_model_paths.yaml to configure model loading

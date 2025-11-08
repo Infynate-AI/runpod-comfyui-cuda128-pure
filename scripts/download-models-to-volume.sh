@@ -44,6 +44,7 @@ mkdir -p "$MODELS_DIR/clip_vision/wan"
 mkdir -p "$MODELS_DIR/loras/Wan2.2"
 mkdir -p "$MODELS_DIR/upscale_models"
 mkdir -p "$MODELS_DIR/sam2"
+mkdir -p "$MODELS_DIR/detection"
 echo "✓ 目录结构创建完成"
 echo ""
 
@@ -235,6 +236,42 @@ download_file \
 echo ""
 
 # ============================================
+# WanAnimate Preprocess Models (Detection & ViTPose)
+# ============================================
+echo "=========================================="
+echo "下载 WanAnimate Preprocess Models"
+echo "=========================================="
+echo "这些模型用于 ComfyUI-WanAnimatePreprocess 节点"
+echo ""
+
+# YOLO Detection Model
+# 用于目标检测
+download_file \
+    "https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx" \
+    "$MODELS_DIR/detection/yolov10m.onnx"
+
+# ViTPose Huge Model (Wholebody)
+# 注意：Huge 模型需要两个文件（由于 ONNX 文件大小限制）
+# 使用 Huge 模型可以获得更好的姿态估计精度
+download_file \
+    "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_data.bin" \
+    "$MODELS_DIR/detection/vitpose_h_wholebody_data.bin"
+
+download_file \
+    "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_model.onnx" \
+    "$MODELS_DIR/detection/vitpose_h_wholebody_model.onnx"
+
+# ViTPose Large Model (Wholebody) - 备选方案
+# 如果不需要 Huge 模型的精度，可以使用 Large 模型（更小更快）
+# 注意：Large 和 Huge 模型只需要选择一个
+# 如果需要使用 Large 模型，取消下面的注释并注释掉上面的 Huge 模型下载
+# download_file \
+#     "https://huggingface.co/JunkyByte/easy_ViTPose/resolve/main/onnx/wholebody/vitpose_l_wholebody.onnx" \
+#     "$MODELS_DIR/detection/vitpose_l_wholebody.onnx"
+
+echo ""
+
+# ============================================
 # 完成
 # ============================================
 echo "=========================================="
@@ -258,6 +295,7 @@ echo "  CLIP Vision: $(find "$MODELS_DIR/clip_vision" -type f 2>/dev/null | wc -
 echo "  LoRAs: $(find "$MODELS_DIR/loras" -type f 2>/dev/null | wc -l) 个文件"
 echo "  Upscale Models: $(find "$MODELS_DIR/upscale_models" -type f 2>/dev/null | wc -l) 个文件"
 echo "  SAM2: $(find "$MODELS_DIR/sam2" -type f 2>/dev/null | wc -l) 个文件"
+echo "  Detection (WanAnimate): $(find "$MODELS_DIR/detection" -type f 2>/dev/null | wc -l) 个文件"
 echo ""
 echo "下一步："
 echo "1. 验证模型文件是否完整"
