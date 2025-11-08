@@ -45,6 +45,10 @@ mkdir -p "$MODELS_DIR/loras/Wan2.2"
 mkdir -p "$MODELS_DIR/upscale_models"
 mkdir -p "$MODELS_DIR/sam2"
 mkdir -p "$MODELS_DIR/detection"
+# Create directory for comfyui_controlnet_aux models (DWPose, etc.)
+mkdir -p "$MODELS_DIR/controlnet_aux"
+mkdir -p "$MODELS_DIR/controlnet_aux/ckpts/hr16/DWPose-TorchScript-BatchSize5"
+mkdir -p "$MODELS_DIR/controlnet_aux/ckpts/yzd-v/DWPose"
 echo "✓ 目录结构创建完成"
 echo ""
 
@@ -92,6 +96,11 @@ download_file \
 download_file \
     "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_animate_14B_bf16.safetensors" \
     "$MODELS_DIR/diffusion_models/Wan2.2/wan2.2_animate_14B_bf16.safetensors"
+
+# Wan2.2 Animate fp8 scaled model (smaller, memory-efficient version)
+download_file \
+    "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/Wan22Animate/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors" \
+    "$MODELS_DIR/diffusion_models/Wan2.2/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors"
 
 echo ""
 
@@ -233,6 +242,11 @@ download_file \
     "https://huggingface.co/Kijai/sam2-safetensors/resolve/main/sam2_t.decoder.safetensors" \
     "$MODELS_DIR/sam2/sam2_t.decoder.safetensors"
 
+# SAM2.1 Hiera model (used by ComfyUI-segment-anything-2)
+download_file \
+    "https://huggingface.co/Kijai/sam2-safetensors/resolve/main/sam2.1_hiera_base_plus-fp16.safetensors" \
+    "$MODELS_DIR/sam2/sam2.1_hiera_base_plus-fp16.safetensors"
+
 echo ""
 
 # ============================================
@@ -268,6 +282,28 @@ download_file \
 # download_file \
 #     "https://huggingface.co/JunkyByte/easy_ViTPose/resolve/main/onnx/wholebody/vitpose_l_wholebody.onnx" \
 #     "$MODELS_DIR/detection/vitpose_l_wholebody.onnx"
+
+echo ""
+
+# ============================================
+# ControlNet Aux Models (DWPose, etc.)
+# ============================================
+echo "=========================================="
+echo "下载 ControlNet Aux Models"
+echo "=========================================="
+echo "这些模型用于 comfyui_controlnet_aux 节点（DWPose 等）"
+echo ""
+
+# DWPose TorchScript models
+# bbox detector
+download_file \
+    "https://huggingface.co/hr16/yolox-onnx/resolve/main/yolox_l.torchscript.pt" \
+    "$MODELS_DIR/controlnet_aux/ckpts/yzd-v/DWPose/yolox_l.torchscript.pt"
+
+# pose estimator
+download_file \
+    "https://huggingface.co/hr16/DWPose-TorchScript-BatchSize5/resolve/main/dw-ll_ucoco_384_bs5.torchscript.pt" \
+    "$MODELS_DIR/controlnet_aux/ckpts/hr16/DWPose-TorchScript-BatchSize5/dw-ll_ucoco_384_bs5.torchscript.pt"
 
 echo ""
 
