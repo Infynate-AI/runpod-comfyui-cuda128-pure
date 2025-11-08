@@ -77,6 +77,8 @@ RUN git config --global --add safe.directory '*' && \
     rm -rf comfyui-kjnodes && \
     git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes.git comfyui-kjnodes && \
     (cd comfyui-kjnodes && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    # Install sageattention module required by PathchSageAttentionKJ node
+    python3 -m pip install --no-cache-dir sageattention || true && \
     \
     # Install ComfyUI-VideoHelperSuite
     rm -rf comfyui-videohelpersuite && \
@@ -130,6 +132,21 @@ RUN git config --global --add safe.directory '*' && \
     git clone --depth 1 https://github.com/yolain/ComfyUI-Easy-Use.git ComfyUI-Easy-Use && \
     (cd ComfyUI-Easy-Use && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
     \
+    # Install RES4LYF (provides res_2s sampler and beta57 scheduler for Wan2.2)
+    rm -rf RES4LYF && \
+    git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git RES4LYF && \
+    (cd RES4LYF && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
+    # Install comfyui_controlnet_aux (ControlNet Auxiliary Preprocessors)
+    rm -rf comfyui_controlnet_aux && \
+    git clone --depth 1 https://github.com/Fannovel16/comfyui_controlnet_aux.git comfyui_controlnet_aux && \
+    (cd comfyui_controlnet_aux && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
+    # Install ComfyUI-WanVideoWrapper (WanVideo wrapper nodes and related models)
+    rm -rf ComfyUI-WanVideoWrapper && \
+    git clone --depth 1 https://github.com/kijai/ComfyUI-WanVideoWrapper.git ComfyUI-WanVideoWrapper && \
+    (cd ComfyUI-WanVideoWrapper && [ ! -f requirements.txt ] || python3 -m pip install --no-cache-dir -r requirements.txt || true) && \
+    \
     cd $COMFYUI_PATH
 
 # Support for Network Volume - Copy extra_model_paths.yaml to configure model loading
@@ -139,43 +156,7 @@ WORKDIR $COMFYUI_PATH
 COPY src/extra_model_paths.yaml ./
 WORKDIR /
 
-# Download ReActor inswapper_128.onnx to ComfyUI default path
-# This ensures ReActor nodes can find the model even if extra_model_paths.yaml or symlinks fail
-# ReActor swap_model parameter expects inswapper_128.onnx in /comfyui/models/insightface/
-RUN mkdir -p $COMFYUI_PATH/models/insightface && \
-    wget -q --show-progress -O $COMFYUI_PATH/models/insightface/inswapper_128.onnx \
-    "https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/inswapper_128.onnx" || \
-    (echo "Warning: Failed to download inswapper_128.onnx" && exit 0)
 
-# Pre-download InsightFace AntelopeV2 model for PuLID_ComfyUI
-# PuLID_ComfyUI expects /comfyui/models/insightface/models/antelopev2/
-# This provides a fallback if Network Volume doesn't have the model
-RUN mkdir -p $COMFYUI_PATH/models/insightface/models && \
-    wget -q -O /tmp/antelopev2.zip "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip" && \
-    test -f /tmp/antelopev2.zip || (echo "Error: Failed to download antelopev2.zip" && exit 1) && \
-    unzip -q /tmp/antelopev2.zip -d $COMFYUI_PATH/models/insightface/models/ && \
-    rm /tmp/antelopev2.zip
-
-# Pre-download BLIP models to avoid runtime download failures
-# BLIP models are used by was-node-suite-comfyui for image captioning and VQA
-# According to was-node-suite-comfyui, it uses /comfyui/models/blip as cache_dir
-# We download models using transformers library which will place them correctly
-# This provides a fallback if Network Volume doesn't have BLIP models
-RUN mkdir -p $COMFYUI_PATH/models/blip && \
-    python3 -c "from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQuestionAnswering; \
-    import os; \
-    blip_cache = '/comfyui/models/blip'; \
-    os.environ['HF_HUB_CACHE'] = blip_cache; \
-    os.environ['TRANSFORMERS_CACHE'] = blip_cache; \
-    os.environ['HF_HOME'] = blip_cache; \
-    print('Downloading BLIP image captioning model...'); \
-    BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache); \
-    BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base', cache_dir=blip_cache); \
-    print('Downloading BLIP VQA model...'); \
-    BlipProcessor.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache); \
-    BlipForQuestionAnswering.from_pretrained('Salesforce/blip-vqa-base', cache_dir=blip_cache); \
-    print('BLIP models downloaded successfully')" || \
-    (echo "Warning: Failed to download BLIP models" && exit 0)
 
 # ============================================
 # 模型下载已移除 - 使用 Network Volume 存储模型

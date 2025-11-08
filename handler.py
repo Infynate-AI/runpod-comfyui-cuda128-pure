@@ -16,6 +16,9 @@ import traceback
 import logging
 import sys
 import warnings
+import subprocess
+import re
+from urllib.parse import urljoin, urlparse
 
 # CRITICAL: Configure numba BEFORE importing any modules that use numba
 # Numba's SSA block analysis and other debug logs can be very verbose
@@ -153,9 +156,12 @@ if not isinstance(sys.stderr, NumbaOutputFilter):
     sys.stderr = NumbaOutputFilter(sys.stderr)
 
 # Time to wait between API check attempts in milliseconds
-COMFY_API_AVAILABLE_INTERVAL_MS = 50
+# Default: 50ms, can be overridden via COMFY_API_AVAILABLE_INTERVAL_MS environment variable
+COMFY_API_AVAILABLE_INTERVAL_MS = int(os.environ.get("COMFY_API_AVAILABLE_INTERVAL_MS", 50))
 # Maximum number of API check attempts
-COMFY_API_AVAILABLE_MAX_RETRIES = 500
+# Default: 1000 (50 seconds), increased for first-time startup with many custom nodes
+# Can be overridden via COMFY_API_AVAILABLE_MAX_RETRIES environment variable
+COMFY_API_AVAILABLE_MAX_RETRIES = int(os.environ.get("COMFY_API_AVAILABLE_MAX_RETRIES", 1000))
 # Websocket reconnection behaviour (can be overridden through environment variables)
 # NOTE: more attempts and diagnostics improve debuggability whenever ComfyUI crashes mid-job.
 #   • WEBSOCKET_RECONNECT_ATTEMPTS sets how many times we will try to reconnect.
@@ -303,6 +309,17 @@ def validate_input(job_input):
                 "'images' must be a list of objects with 'name' and 'image' keys",
             )
 
+    # Validate 'videos' in input, if provided
+    videos = job_input.get("videos")
+    if videos is not None:
+        if not isinstance(videos, list) or not all(
+            "name" in video and "video" in video for video in videos
+        ):
+            return (
+                None,
+                "'videos' must be a list of objects with 'name' and 'video' keys",
+            )
+
     # Optional: API key for Comfy.org API Nodes, passed per-request
     comfy_org_api_key = job_input.get("comfy_org_api_key")
 
@@ -310,43 +327,40 @@ def validate_input(job_input):
     return {
         "workflow": workflow,
         "images": images,
+        "videos": videos,
         "comfy_org_api_key": comfy_org_api_key,
     }, None
 
 
-def check_server(url, retries=500, delay=50):
+def check_server(url, retries=None, delay=None):
     """
     Check if a server is reachable via HTTP GET request
 
     Args:
     - url (str): The URL to check
-    - retries (int, optional): The number of times to attempt connecting to the server. Default is 50
-    - delay (int, optional): The time in milliseconds to wait between retries. Default is 500
+    - retries (int, optional): The number of times to attempt connecting to the server. 
+      If None, uses COMFY_API_AVAILABLE_MAX_RETRIES
+    - delay (int, optional): The time in milliseconds to wait between retries.
+      If None, uses COMFY_API_AVAILABLE_INTERVAL_MS
 
     Returns:
     bool: True if the server is reachable within the given number of retries, otherwise False
     """
-
-    print(f"worker-comfyui - Checking API server at {url}...")
+    if retries is None:
+        retries = COMFY_API_AVAILABLE_MAX_RETRIES
+    if delay is None:
+        delay = COMFY_API_AVAILABLE_INTERVAL_MS
+    
     for i in range(retries):
         try:
             response = requests.get(url, timeout=5)
-
-            # If the response status code is 200, the server is up and running
             if response.status_code == 200:
-                print(f"worker-comfyui - API is reachable")
                 return True
-        except requests.Timeout:
+        except (requests.Timeout, requests.RequestException):
             pass
-        except requests.RequestException as e:
-            pass
-
-        # Wait for the specified delay before retrying
         time.sleep(delay / 1000)
 
-    print(
-        f"worker-comfyui - Failed to connect to server at {url} after {retries} attempts."
-    )
+    print(f"worker-comfyui - ComfyUI server not reachable after {retries} attempts")
     return False
 
 
@@ -398,32 +412,111 @@ def normalize_workflow_paths(workflow):
                     if is_path_field or is_likely_file_path:
                         normalized = value.replace("\\", "/")
                         node_data["inputs"][key] = normalized
-                        print(f"worker-comfyui - Normalized path in node {node_id}, field '{key}': {value} -> {normalized}")
     
     return workflow
 
 
-def convert_url_to_base64(image_url, timeout=30):
+def convert_m3u8_to_base64(m3u8_url, timeout=300):
     """
-    从 URL 下载图片并编码为 base64 字符串。
+    从 m3u8 (HLS) URL 下载视频并编码为 base64 字符串。
+    使用 ffmpeg 下载并合并所有视频片段。
 
     Args:
-        image_url (str): 图片的 URL 地址
-        timeout (int): 下载超时时间（秒）
+        m3u8_url (str): m3u8 播放列表的 URL 地址
+        timeout (int): 下载超时时间（秒），默认 300 秒（5分钟）
 
     Returns:
-        str: base64 编码的图片字符串，如果失败则返回 None
+        str: base64 编码的视频字符串，如果失败则返回 None
     """
+    temp_output = None
     try:
-        print(f"worker-comfyui - Downloading image from URL: {image_url}")
+        
+        # 创建临时文件用于存储合并后的视频
+        temp_output = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
+        temp_output.close()
+        output_path = temp_output.name
+        
+        # 使用 ffmpeg 下载并合并 m3u8 视频
+        # -i: 输入 URL
+        # -c copy: 直接复制流，不重新编码（更快）
+        # -bsf:a aac_adtstoasc: 修复某些 HLS 流的音频流
+        # -y: 覆盖输出文件
+        # -timeout: 网络超时
+        cmd = [
+            'ffmpeg',
+            '-i', m3u8_url,
+            '-c', 'copy',
+            '-bsf:a', 'aac_adtstoasc',
+            '-y',
+            '-timeout', str(timeout * 1000000),  # ffmpeg 使用微秒
+            output_path
+        ]
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 60  # 给 ffmpeg 额外的时间
+        )
+        
+        if result.returncode != 0:
+            print(f"worker-comfyui - ffmpeg error: {result.stderr}")
+            return None
+        
+        # 读取合并后的视频文件
+        with open(output_path, 'rb') as f:
+            video_bytes = f.read()
+        
+        # 编码为 base64
+        base64_encoded = base64.b64encode(video_bytes).decode('utf-8')
+        
+        return base64_encoded
+        
+    except subprocess.TimeoutExpired:
+        print(f"worker-comfyui - Timeout downloading m3u8 video from {m3u8_url}")
+        return None
+    except FileNotFoundError:
+        print(f"worker-comfyui - ffmpeg not found. Please ensure ffmpeg is installed.")
+        return None
+    except Exception as e:
+        print(f"worker-comfyui - Unexpected error converting m3u8 to base64: {e}")
+        print(traceback.format_exc())
+        return None
+    finally:
+        # 清理临时文件
+        if temp_output and os.path.exists(temp_output.name):
+            try:
+                os.remove(temp_output.name)
+            except OSError:
+                pass
+
+
+def convert_url_to_base64(image_url, timeout=30):
+    """
+    从 URL 下载图片或视频并编码为 base64 字符串。
+    支持直接媒体文件（图片、视频）和 m3u8 (HLS) 流媒体。
+
+    Args:
+        image_url (str): 媒体文件的 URL 地址（支持图片、视频或 m3u8）
+        timeout (int): 下载超时时间（秒），对于 m3u8 会自动使用更长的超时时间
+
+    Returns:
+        str: base64 编码的媒体字符串，如果失败则返回 None
+    """
+    # 检查是否是 m3u8 格式
+    if image_url.lower().endswith('.m3u8') or '.m3u8' in image_url.lower():
+        # m3u8 需要更长的超时时间和特殊处理
+        return convert_m3u8_to_base64(image_url, timeout=max(timeout, 300))
+    
+    # 处理直接的媒体文件（图片或视频）
+    try:
         response = requests.get(image_url, timeout=timeout, stream=True)
         response.raise_for_status()
-        image_bytes = response.content
-        base64_encoded = base64.b64encode(image_bytes).decode('utf-8')
-        print(f"worker-comfyui - Successfully downloaded and encoded image from URL")
+        media_bytes = response.content
+        base64_encoded = base64.b64encode(media_bytes).decode('utf-8')
         return base64_encoded
     except requests.RequestException as e:
-        print(f"worker-comfyui - Error downloading image from URL {image_url}: {e}")
+        print(f"worker-comfyui - Error downloading media from URL {image_url}: {e}")
         return None
     except Exception as e:
         print(f"worker-comfyui - Unexpected error converting URL to base64: {e}")
@@ -448,7 +541,6 @@ def upload_images(images):
     responses = []
     upload_errors = []
 
-    print(f"worker-comfyui - Uploading {len(images)} image(s)...")
 
     for image in images:
         try:
@@ -481,7 +573,6 @@ def upload_images(images):
             response.raise_for_status()
 
             responses.append(f"Successfully uploaded {name}")
-            print(f"worker-comfyui - Successfully uploaded {name}")
 
         except base64.binascii.Error as e:
             error_msg = f"Error decoding base64 for {image.get('name', 'unknown')}: {e}"
@@ -510,10 +601,110 @@ def upload_images(images):
             "details": upload_errors,
         }
 
-    print(f"worker-comfyui - image(s) upload complete")
     return {
         "status": "success",
         "message": "All images uploaded successfully",
+        "details": responses,
+    }
+
+
+def upload_videos(videos):
+    """
+    Upload a list of base64 encoded videos to the ComfyUI server using the /upload/image endpoint.
+    注意: ComfyUI 使用 /upload/image 端点也可以上传视频文件。此函数处理 base64 编码的视频。
+    URL 视频应在调用此函数前先转换为 base64。
+
+    Args:
+        videos (list): A list of dictionaries, each containing the 'name' of the video and the 'video' as:
+            - A base64 encoded string (with optional data URI prefix)
+
+    Returns:
+        dict: A dictionary indicating success or error.
+    """
+    if not videos:
+        return {"status": "success", "message": "No videos to upload", "details": []}
+
+    responses = []
+    upload_errors = []
+
+
+    for video in videos:
+        try:
+            name = video["name"]
+            video_data_uri = video["video"]  # Get the full string (should be base64 now)
+
+            # Handle base64 encoded data
+            # --- Strip Data URI prefix if present ---
+            if "," in video_data_uri:
+                # Find the comma and take everything after it
+                base64_data = video_data_uri.split(",", 1)[1]
+            else:
+                # Assume it's already pure base64
+                base64_data = video_data_uri
+            # --- End strip ---
+
+            blob = base64.b64decode(base64_data)  # Decode the cleaned data
+            
+            # Determine content type based on file extension
+            name_lower = name.lower()
+            if name_lower.endswith('.mp4') or name_lower.endswith('.m4v'):
+                content_type = "video/mp4"
+            elif name_lower.endswith('.webm'):
+                content_type = "video/webm"
+            elif name_lower.endswith('.mov'):
+                content_type = "video/quicktime"
+            elif name_lower.endswith('.avi'):
+                content_type = "video/x-msvideo"
+            elif name_lower.endswith('.mkv'):
+                content_type = "video/x-matroska"
+            else:
+                content_type = "video/mp4"  # Default
+
+            # Prepare the form data
+            # ComfyUI uses /upload/image endpoint for both images and videos
+            files = {
+                "image": (name, BytesIO(blob), content_type),
+                "overwrite": (None, "true"),
+            }
+
+            # POST request to upload the video (using same endpoint as images)
+            response = requests.post(
+                f"http://{COMFY_HOST}/upload/image", files=files, timeout=60
+            )
+            response.raise_for_status()
+
+            responses.append(f"Successfully uploaded {name}")
+
+        except base64.binascii.Error as e:
+            error_msg = f"Error decoding base64 for {video.get('name', 'unknown')}: {e}"
+            print(f"worker-comfyui - {error_msg}")
+            upload_errors.append(error_msg)
+        except requests.Timeout:
+            error_msg = f"Timeout uploading {video.get('name', 'unknown')}"
+            print(f"worker-comfyui - {error_msg}")
+            upload_errors.append(error_msg)
+        except requests.RequestException as e:
+            error_msg = f"Error uploading {video.get('name', 'unknown')}: {e}"
+            print(f"worker-comfyui - {error_msg}")
+            upload_errors.append(error_msg)
+        except Exception as e:
+            error_msg = (
+                f"Unexpected error uploading {video.get('name', 'unknown')}: {e}"
+            )
+            print(f"worker-comfyui - {error_msg}")
+            upload_errors.append(error_msg)
+
+    if upload_errors:
+        print(f"worker-comfyui - video(s) upload finished with errors")
+        return {
+            "status": "error",
+            "message": "Some videos failed to upload",
+            "details": upload_errors,
+        }
+
+    return {
+        "status": "success",
+        "message": "All videos uploaded successfully",
         "details": responses,
     }
 
@@ -699,7 +890,6 @@ def get_image_data(filename, subfolder, image_type):
         # Use requests for consistency and timeout
         response = requests.get(f"http://{COMFY_HOST}/view?{url_values}", timeout=60)
         response.raise_for_status()
-        print(f"worker-comfyui - Successfully fetched image data for {filename}")
         return response.content
     except requests.Timeout:
         print(f"worker-comfyui - Timeout fetching image data for {filename}")
@@ -775,6 +965,7 @@ def handler(job):
     # Extract validated data
     workflow = validated_data["workflow"]
     input_images = validated_data.get("images")
+    input_videos = validated_data.get("videos")
 
     # 标准化工作流中的路径（将 Windows 风格的路径转换为 Unix 风格）
     workflow = normalize_workflow_paths(workflow)
@@ -795,7 +986,6 @@ def handler(job):
             image_data = image.get("image", "")
             # 检查是否是 URL
             if isinstance(image_data, str) and (image_data.startswith("http://") or image_data.startswith("https://")):
-                print(f"worker-comfyui - Detected URL input for image '{image.get('name')}', converting to base64...")
                 base64_image = convert_url_to_base64(image_data)
                 if base64_image is None:
                     return {
@@ -803,7 +993,21 @@ def handler(job):
                     }
                 # 将 URL 替换为 base64 编码
                 image["image"] = base64_image
-                print(f"worker-comfyui - Successfully converted URL to base64 for image '{image.get('name')}'")
+            # 如果已经是 base64，保持不变，正常处理
+
+    # 如果输入视频中包含 URL，先下载并转换为 base64
+    if input_videos:
+        for video in input_videos:
+            video_data = video.get("video", "")
+            # 检查是否是 URL
+            if isinstance(video_data, str) and (video_data.startswith("http://") or video_data.startswith("https://")):
+                base64_video = convert_url_to_base64(video_data, timeout=60)  # 视频文件可能较大，使用更长的超时时间
+                if base64_video is None:
+                    return {
+                        "error": f"Failed to download and convert video from URL: {video_data}",
+                    }
+                # 将 URL 替换为 base64 编码
+                video["video"] = base64_video
             # 如果已经是 base64，保持不变，正常处理
 
     # Upload input images if they exist
@@ -816,6 +1020,16 @@ def handler(job):
                 "details": upload_result["details"],
             }
 
+    # Upload input videos if they exist
+    if input_videos:
+        upload_result = upload_videos(input_videos)
+        if upload_result["status"] == "error":
+            # Return upload errors
+            return {
+                "error": "Failed to upload one or more input videos",
+                "details": upload_result["details"],
+            }
+
     ws = None
     client_id = str(uuid.uuid4())
     prompt_id = None
@@ -825,10 +1039,8 @@ def handler(job):
     try:
         # Establish WebSocket connection
         ws_url = f"ws://{COMFY_HOST}/ws?clientId={client_id}"
-        print(f"worker-comfyui - Connecting to websocket: {ws_url}")
         ws = websocket.WebSocket()
         ws.connect(ws_url, timeout=10)
-        print(f"worker-comfyui - Websocket connected")
 
         # Queue the workflow
         try:
@@ -843,7 +1055,6 @@ def handler(job):
                 raise ValueError(
                     f"Missing 'prompt_id' in queue response: {queued_workflow}"
                 )
-            print(f"worker-comfyui - Queued workflow with ID: {prompt_id}")
         except requests.RequestException as e:
             print(f"worker-comfyui - Error queuing workflow: {e}")
             raise ValueError(f"Error queuing workflow: {e}")
@@ -856,7 +1067,6 @@ def handler(job):
                 raise ValueError(f"Unexpected error queuing workflow: {e}")
 
         # Wait for execution completion via WebSocket
-        print(f"worker-comfyui - Waiting for workflow execution ({prompt_id})...")
         execution_done = False
         while True:
             try:
@@ -864,19 +1074,13 @@ def handler(job):
                 if isinstance(out, str):
                     message = json.loads(out)
                     if message.get("type") == "status":
-                        status_data = message.get("data", {}).get("status", {})
-                        print(
-                            f"worker-comfyui - Status update: {status_data.get('exec_info', {}).get('queue_remaining', 'N/A')} items remaining in queue"
-                        )
+                        pass  # Skip status updates to reduce log noise
                     elif message.get("type") == "executing":
                         data = message.get("data", {})
                         if (
                             data.get("node") is None
                             and data.get("prompt_id") == prompt_id
                         ):
-                            print(
-                                f"worker-comfyui - Execution finished for prompt {prompt_id}"
-                            )
                             execution_done = True
                             break
                     elif message.get("type") == "execution_error":
@@ -891,7 +1095,6 @@ def handler(job):
                 else:
                     continue
             except websocket.WebSocketTimeoutException:
-                print(f"worker-comfyui - Websocket receive timed out. Still waiting...")
                 continue
             except websocket.WebSocketConnectionClosedException as closed_err:
                 try:
@@ -915,7 +1118,7 @@ def handler(job):
                     raise reconn_failed_err
 
             except json.JSONDecodeError:
-                print(f"worker-comfyui - Received invalid JSON message via websocket.")
+                pass
 
         if not execution_done and not errors:
             raise ValueError(
@@ -923,7 +1126,6 @@ def handler(job):
             )
 
         # Fetch history even if there were execution errors, some outputs might exist
-        print(f"worker-comfyui - Fetching history for prompt {prompt_id}...")
         history = get_history(prompt_id)
 
         if prompt_id not in history:
@@ -947,7 +1149,6 @@ def handler(job):
             if not errors:
                 errors.append(warning_msg)
 
-        print(f"worker-comfyui - Processing {len(outputs)} output nodes...")
         for node_id, node_output in outputs.items():
             # Process "images", "gifs", and "animated" outputs (all are media files)
             media_files = []
