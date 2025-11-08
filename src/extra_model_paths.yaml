@@ -10,6 +10,7 @@ comfyui:
   upscale_models: models/upscale_models/
   vae: models/vae/
   sam2: models/sam2/
+  detection: models/detection/
 
 # Network Volume paths (primary storage location)
 runpod_worker_comfy:
@@ -22,3 +23,4 @@ runpod_worker_comfy:
   upscale_models: models/upscale_models/
   vae: models/vae/
   sam2: models/sam2/
+  detection: models/detection/
